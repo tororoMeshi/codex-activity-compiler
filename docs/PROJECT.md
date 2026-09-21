@@ -63,7 +63,7 @@ Raw Span破棄
 
 例えば `dispatch_tool_call_with_terminal_outcome` そのものではなく、その内部にある `codex.tool_result` からtool名、成功可否、duration、MCP判定などを抽出する。
 
-Turnについては `session_task.turn` を基準レコードとし、別Spanに存在するTTFTや作業ディレクトリなどをTurnまたはSessionへ統合する。TTFTは `codex.turn_ttft`、作業ディレクトリは `run_sampling_request` から取得できる。 
+Turnについては `session_task.turn` を基準レコードとし、別Spanに存在するTTFTや作業ディレクトリなどをTurnへ統合する。TTFTは `codex.turn_ttft`、作業ディレクトリは `run_sampling_request` から取得できる。
 
 ### 他にない工夫点
 
@@ -91,6 +91,7 @@ Turnについては `session_task.turn` を基準レコードとし、別Spanに
 
 ```text
 name
+kind
 count
 first_seen
 last_seen
@@ -125,20 +126,23 @@ Rust Application
 ├─ Normalizer
 ├─ Aggregator
 ├─ SQLite
-└─ Web UI
+└─ Web UI（将来構成。今回のMVPコア実装範囲外）
 ```
 
-保存データは主に3種類とする。
+今回のMVPコアでは、受信したTelemetryをRawのまま保存せず、次の4種類へ正規化してSQLiteへ保存する。
 
 | データ      | 主な内容                                               |
 | -------- | -------------------------------------------------- |
-| Session  | conversation ID、cwd、開始・終了時刻、Turn数、ToolCall数、総token |
-| Turn     | model、reasoning effort、token内訳、duration、TTFT       |
+| Session  | conversation ID |
+| Turn     | model、reasoning effort、token内訳、開始・終了時刻、TTFT、cwd、prompt長 |
 | ToolCall | tool名、builtin/MCP、成功可否、duration、入出力量               |
+| UnknownTelemetry | 未分類Span/Eventのname、kind、count、初回・最終観測時刻 |
 
-ユーザープロンプト本文やTool出力本文は初期実装では保存しない。`codex.user_prompt` からはprompt長や入力種別だけを利用する。
+Sessionの開始・終了時刻、Turn数、ToolCall数、token合計は下位レコードから導出し、永続化しない。Turn durationも開始・終了時刻から導出し、永続化しない。
 
-Web UIはSession一覧からTurn、ToolCallへ辿れる最低限の構成とする。
+ユーザープロンプト本文やTool出力本文はMVPコアでは保存しない。`codex.user_prompt` からは、canonical Turnへ確定的に関連付けられるprompt長だけを利用する。
+
+Web UIは将来、Session一覧からTurn、ToolCallへ辿れる最低限の構成とする。現在実装済みのMVPコアは、OTLP/HTTP受信、正規化、SQLite保存までである。
 
 ## 6. 評価方式
 
